@@ -1,0 +1,41 @@
+class WebsitePage {
+
+    constructor(page) {
+        this.page = page;
+    }
+
+    async open(url) {
+
+        const startTime = Date.now();
+
+        const response = await this.page.goto(url, {
+            waitUntil: 'domcontentloaded',
+            timeout: 30000
+        });
+
+        const loadTime = Date.now() - startTime;
+
+        return {
+            response,
+            loadTime
+        };
+    }
+
+    async getTitle() {
+        return await this.page.title();
+    }
+
+    async getLinks() {
+
+        const links = await this.page.locator('a[href]').evaluateAll(
+            anchors => anchors.map(anchor => ({
+                text: anchor.innerText.trim(),
+                href: anchor.href
+            }))
+        );
+
+        return links;
+    }
+}
+
+module.exports = WebsitePage;

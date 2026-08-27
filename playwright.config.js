@@ -1,0 +1,22 @@
+const { defineConfig } = require('@playwright/test');
+
+module.exports = defineConfig({
+
+    testDir: './tests',
+
+    timeout: 60000,
+
+    use: {
+        headless: true,
+        screenshot: 'only-on-failure',
+        trace: 'retain-on-failure'
+    },
+
+    reporter: [
+        ['list'],
+        ['html', {
+            outputFolder: 'reports/playwright-report',
+            open: 'never'
+        }]
+    ]
+});

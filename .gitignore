@@ -1,0 +1,15 @@
+node_modules/
+
+playwright-report/
+test-results/
+
+reports/
+screenshots/
+
+data/*.xlsx
+
+.env
+.env.*
+
+.DS_Store
+Thumbs.db

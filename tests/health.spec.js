@@ -1,0 +1,326 @@
+const { test, expect } = require('@playwright/test');
+
+const { readWebsites } = require('../utils/excelReader');
+const WebsitePage = require('../pages/WebsitePage');
+const { checkLinks } = require('../utils/linkChecker');
+const { generateExcelReport } = require('../utils/excelReport');
+
+const websites = readWebsites();
+
+const results = [];
+
+for (const website of websites) {
+
+    // Only run websites where HealthCheck is Yes
+    if (String(website.HealthCheck).toLowerCase() !== 'yes') {
+        continue;
+    }
+
+    test(`Health Check - ${website.SiteName}`, async ({ page }) => {
+
+        const websitePage = new WebsitePage(page);
+
+        // =====================================================
+        // VARIABLES
+        // =====================================================
+
+        let httpStatus = 'N/A';
+        let loadTime = 'N/A';
+        let title = 'N/A';
+
+        let totalLinks = 0;
+        let brokenLinks = 0;
+        let brokenLinkUrls = '';
+
+        let consoleErrors = 0;
+        let consoleErrorMessages = '';
+
+        let websiteStatus = 'FAIL';
+        let failureReason = '';
+
+        // =====================================================
+        // CONSOLE ERROR LISTENER
+        // =====================================================
+
+        const consoleErrorsList = [];
+
+        page.on('console', message => {
+
+            if (message.type() === 'error') {
+
+                const errorMessage = message.text();
+
+                consoleErrorsList.push(errorMessage);
+
+                console.log(
+                    `⚠️ Console Error: ${errorMessage}`
+                );
+            }
+        });
+
+        // =====================================================
+        // START TEST
+        // =====================================================
+
+        console.log('\n========================================');
+        console.log(`Testing: ${website.SiteName}`);
+        console.log(`URL: ${website.URL}`);
+        console.log('========================================');
+
+        try {
+
+            // =================================================
+            // 1. OPEN WEBSITE
+            // =================================================
+
+            const result = await websitePage.open(website.URL);
+
+            loadTime = result.loadTime;
+
+            httpStatus = result.response
+                ? result.response.status()
+                : 'NO RESPONSE';
+
+            console.log(`HTTP Status: ${httpStatus}`);
+            console.log(`Page Load Time: ${loadTime} ms`);
+
+            // =================================================
+            // 2. PAGE TITLE
+            // =================================================
+
+            title = await websitePage.getTitle();
+
+            console.log(`Page Title: ${title}`);
+
+            // =================================================
+            // 3. MAIN WEBSITE HEALTH VALIDATION
+            // =================================================
+
+            expect(result.response).not.toBeNull();
+
+            expect(httpStatus).toBeGreaterThanOrEqual(200);
+
+            expect(httpStatus).toBeLessThan(400);
+
+            expect(title.trim()).not.toBe('');
+
+            // =================================================
+            // 4. FIND LINKS
+            // =================================================
+
+            const links = await websitePage.getLinks();
+
+            totalLinks = links.length;
+
+            console.log(`Total Links Found: ${totalLinks}`);
+
+            // =================================================
+            // 5. CHECK LINKS
+            // =================================================
+
+            const linkResults = await checkLinks(
+                page.request,
+                links
+            );
+
+            const brokenLinkResults = linkResults.filter(
+                link => link.result === 'FAIL'
+            );
+
+            brokenLinks = brokenLinkResults.length;
+
+            brokenLinkUrls = brokenLinkResults
+                .map(link => link.url)
+                .join('\n');
+
+            console.log(`Broken Links: ${brokenLinks}`);
+
+            // =================================================
+            // 6. DISPLAY BROKEN LINKS
+            // =================================================
+
+            if (brokenLinks > 0) {
+
+                console.log('\n❌ Broken Links Found:');
+
+                for (const link of brokenLinkResults) {
+
+                    console.log(
+                        `- ${link.status} | ${link.url}`
+                    );
+                }
+
+            } else {
+
+                console.log('✅ No broken links found');
+
+            }
+
+            // =================================================
+            // 7. WAIT A LITTLE FOR JAVASCRIPT
+            // =================================================
+
+            await page.waitForTimeout(2000);
+
+            // =================================================
+            // 8. CONSOLE ERROR RESULTS
+            // =================================================
+
+            consoleErrors = consoleErrorsList.length;
+
+            consoleErrorMessages =
+                consoleErrorsList.join('\n');
+
+            console.log(
+                `Console Errors: ${consoleErrors}`
+            );
+
+            if (consoleErrors > 0) {
+
+                console.log('\n⚠️ Console Errors Found:');
+
+                consoleErrorsList.forEach(
+                    (error, index) => {
+
+                        console.log(
+                            `${index + 1}. ${error}`
+                        );
+
+                    }
+                );
+
+            } else {
+
+                console.log('✅ No console errors found');
+
+            }
+
+            // =================================================
+            // 9. WEBSITE STATUS
+            // =================================================
+
+            websiteStatus = 'PASS';
+
+            console.log(
+                `\n✅ ${website.SiteName} - PASS`
+            );
+
+        } catch (error) {
+
+            // =================================================
+            // 10. FAILURE
+            // =================================================
+
+            websiteStatus = 'FAIL';
+
+            failureReason = error.message;
+
+            console.log(
+                `\n❌ ${website.SiteName} - FAIL`
+            );
+
+            console.log(
+                `Reason: ${failureReason}`
+            );
+
+            // =================================================
+            // 11. FAILURE SCREENSHOT
+            // =================================================
+
+            try {
+
+                const screenshotName =
+                    `${website.SiteName.replace(
+                        /[^a-z0-9]/gi,
+                        '_'
+                    )}_FAILED.png`;
+
+                await page.screenshot({
+                    path: `screenshots/${screenshotName}`,
+                    fullPage: true
+                });
+
+                console.log(
+                    `📸 Screenshot saved: screenshots/${screenshotName}`
+                );
+
+            } catch (screenshotError) {
+
+                console.log(
+                    `⚠️ Could not save screenshot: ${screenshotError.message}`
+                );
+
+            }
+        }
+
+        // =====================================================
+        // FINAL CONSOLE ERROR COUNT
+        // =====================================================
+
+        consoleErrors = consoleErrorsList.length;
+
+        consoleErrorMessages =
+            consoleErrorsList.join('\n');
+
+        // =====================================================
+        // ADD RESULT TO EXCEL
+        // =====================================================
+
+        results.push({
+
+            'Site Name': website.SiteName,
+
+            'URL': website.URL,
+
+            'HTTP Status': httpStatus,
+
+            'Page Load Time (ms)': loadTime,
+
+            'Page Title': title,
+
+            'Total Links': totalLinks,
+
+            'Broken Links': brokenLinks,
+
+            'Broken Link URLs': brokenLinkUrls,
+
+            'Console Errors': consoleErrors,
+
+            'Console Error Messages': consoleErrorMessages,
+
+            'Website Status': websiteStatus,
+
+            'Failure Reason': failureReason,
+
+            'Checked At': new Date().toLocaleString()
+
+        });
+
+        // =====================================================
+        // FAIL PLAYWRIGHT TEST IF MAIN WEBSITE CHECK FAILED
+        // =====================================================
+
+        if (websiteStatus === 'FAIL') {
+
+            throw new Error(
+                `Website health check failed: ${failureReason}`
+            );
+
+        }
+
+    });
+}
+
+// =============================================================
+// GENERATE EXCEL REPORT
+// =============================================================
+
+test.afterAll(() => {
+
+    if (results.length > 0) {
+
+        generateExcelReport(results);
+
+    }
+
+});
