@@ -2,55 +2,72 @@ const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
 
+
+// ============================================================
+// GENERATE EXCEL REPORT
+// ============================================================
+
 function generateExcelReport(results) {
 
-    // =========================================================
-    // 1. REPORT FOLDER
-    // =========================================================
 
-    const reportsFolder = path.join(
-        __dirname,
-        '..',
-        'reports'
-    );
+    // ========================================================
+    // REPORT FOLDER
+    // ========================================================
 
-    // Create reports folder if it doesn't exist
-    if (!fs.existsSync(reportsFolder)) {
+    const reportsFolder =
+        path.join(
+            __dirname,
+            '..',
+            'reports'
+        );
 
-        fs.mkdirSync(reportsFolder, {
-            recursive: true
-        });
+
+    if (
+        !fs.existsSync(reportsFolder)
+    ) {
+
+        fs.mkdirSync(
+            reportsFolder,
+            {
+                recursive: true
+            }
+        );
 
     }
 
 
-    // =========================================================
-    // 2. REPORT FILE PATH
-    // =========================================================
+    // ========================================================
+    // REPORT PATH
+    // ========================================================
 
-    const reportPath = path.join(
-        reportsFolder,
-        'Website_Health_Report.xlsx'
-    );
-
-
-    // =========================================================
-    // 3. CREATE WORKBOOK
-    // =========================================================
-
-    const workbook = XLSX.utils.book_new();
+    const reportPath =
+        path.join(
+            reportsFolder,
+            'Website_Health_Report.xlsx'
+        );
 
 
-    // =========================================================
-    // 4. CREATE WORKSHEET
-    // =========================================================
+    // ========================================================
+    // CREATE WORKBOOK
+    // ========================================================
 
-    const worksheet = XLSX.utils.json_to_sheet(results);
+    const workbook =
+        XLSX.utils.book_new();
 
 
-    // =========================================================
-    // 5. ADD WORKSHEET TO WORKBOOK
-    // =========================================================
+    // ========================================================
+    // CREATE WORKSHEET
+    // ========================================================
+
+    const worksheet =
+        XLSX.utils.json_to_sheet(
+            results
+        );
+
+
+    // ========================================================
+    // ADD WORKSHEET
+    // ========================================================
 
     XLSX.utils.book_append_sheet(
         workbook,
@@ -59,115 +76,99 @@ function generateExcelReport(results) {
     );
 
 
-    // =========================================================
-    // 6. SET COLUMN WIDTHS
-    // =========================================================
+    // ========================================================
+    // COLUMN WIDTHS
+    // ========================================================
 
     worksheet['!cols'] = [
 
-        // Site Name
-        {
-            wch: 25
-        },
+        { wch: 25 }, // Site Name
 
-        // URL
-        {
-            wch: 55
-        },
+        { wch: 55 }, // URL
 
-        // HTTP Status
-        {
-            wch: 15
-        },
+        { wch: 15 }, // HTTP Status
 
-        // Page Load Time
-        {
-            wch: 22
-        },
+        { wch: 22 }, // Page Load Time
 
-        // Page Title
-        {
-            wch: 45
-        },
+        { wch: 50 }, // Page Title
 
-        // Total Links
-        {
-            wch: 15
-        },
+        { wch: 15 }, // Total Links
 
-        // Broken Links
-        {
-            wch: 15
-        },
+        { wch: 15 }, // Broken Links
 
-        // Broken Link URLs
-        {
-            wch: 60
-        },
+        { wch: 60 }, // Broken Link URLs
 
-        // Console Errors
-        {
-            wch: 18
-        },
+        { wch: 25 }, // Links Needing Review
 
-        // Console Error Messages
-        {
-            wch: 70
-        },
+        { wch: 70 }, // Warning Link URLs
 
-        // Website Status
-        {
-            wch: 18
-        },
+        { wch: 18 }, // Console Errors
 
-        // Failure Reason
-        {
-            wch: 60
-        },
+        { wch: 70 }, // Console Error Messages
 
-        // Checked At
-        {
-            wch: 25
-        }
+        { wch: 25 }, // Failed Network Requests
+
+        { wch: 100 }, // Failed Network Request Details
+
+        { wch: 18 }, // Website Status
+
+        { wch: 60 }, // Failure Reason
+
+        { wch: 25 }  // Checked At
 
     ];
 
 
-    // =========================================================
-    // 7. FREEZE HEADER ROW
-    // =========================================================
+    // ========================================================
+    // FREEZE HEADER
+    // ========================================================
 
     worksheet['!freeze'] = {
+
         xSplit: 0,
+
         ySplit: 1
+
     };
 
 
-    // =========================================================
-    // 8. ADD AUTO FILTER
-    // =========================================================
+    // ========================================================
+    // AUTO FILTER
+    // ========================================================
 
-    if (results.length > 0) {
+    if (
+        results.length > 0
+    ) {
 
         const columnCount =
-            Object.keys(results[0]).length;
+            Object.keys(
+                results[0]
+            ).length;
+
 
         const lastColumn =
-            XLSX.utils.encode_col(columnCount - 1);
+            XLSX.utils.encode_col(
+                columnCount - 1
+            );
+
 
         const lastRow =
             results.length + 1;
 
+
         worksheet['!autofilter'] = {
-            ref: `A1:${lastColumn}${lastRow}`
+
+            ref:
+                `A1:${lastColumn}${lastRow}`
+
         };
 
     }
 
 
-    // =========================================================
-    // 9. WRITE EXCEL FILE
-    // =========================================================
+    // ========================================================
+    // WRITE FILE
+    // ========================================================
 
     XLSX.writeFile(
         workbook,
@@ -175,36 +176,41 @@ function generateExcelReport(results) {
     );
 
 
-    // =========================================================
-    // 10. CONSOLE MESSAGE
-    // =========================================================
+    // ========================================================
+    // CONSOLE MESSAGE
+    // ========================================================
 
-    console.log('\n========================================');
+    console.log(
+        '\n========================================'
+    );
+
 
     console.log(
         '📊 Excel report generated successfully!'
     );
 
+
     console.log(
         `📁 Report: ${reportPath}`
     );
 
-    console.log('========================================\n');
 
+    console.log(
+        '========================================\n'
+    );
 
-    // =========================================================
-    // 11. RETURN REPORT PATH
-    // =========================================================
 
     return reportPath;
 
 }
 
 
-// =============================================================
-// EXPORT FUNCTION
-// =============================================================
+// ============================================================
+// EXPORT
+// ============================================================
 
 module.exports = {
+
     generateExcelReport
+
 };

@@ -1,9 +1,21 @@
 const { test, expect } = require('@playwright/test');
 
-const { readWebsites } = require('../utils/excelReader');
-const WebsitePage = require('../pages/WebsitePage');
-const { checkLinks } = require('../utils/linkChecker');
-const { generateExcelReport } = require('../utils/excelReport');
+const { readWebsites } =
+    require('../utils/excelReader');
+
+const WebsitePage =
+    require('../pages/WebsitePage');
+
+const { checkLinks } =
+    require('../utils/linkChecker');
+
+const {
+    generateExcelReport
+} = require('../utils/excelReport');
+
+const {
+    setupNetworkChecker
+} = require('../utils/networkChecker');
 
 
 // ============================================================
@@ -26,12 +38,16 @@ const results = [];
 
 for (const website of websites) {
 
-    // Only test websites where HealthCheck = Yes
+    // ========================================================
+    // CHECK WHETHER WEBSITE SHOULD BE TESTED
+    // ========================================================
 
     if (
         String(website.HealthCheck).toLowerCase() !== 'yes'
     ) {
+
         continue;
+
     }
 
 
@@ -44,7 +60,16 @@ for (const website of websites) {
             // PAGE OBJECT
             // =================================================
 
-            const websitePage = new WebsitePage(page);
+            const websitePage =
+                new WebsitePage(page);
+
+
+            // =================================================
+            // NETWORK MONITORING
+            // =================================================
+
+            const networkChecker =
+                setupNetworkChecker(page);
 
 
             // =================================================
@@ -71,6 +96,10 @@ for (const website of websites) {
 
             let consoleErrorMessages = '';
 
+            let failedNetworkRequests = 0;
+
+            let failedNetworkRequestDetails = '';
+
             let websiteStatus = 'FAIL';
 
             let failureReason = '';
@@ -94,9 +123,11 @@ for (const website of websites) {
                         const errorMessage =
                             message.text();
 
+
                         consoleErrorsList.push(
                             errorMessage
                         );
+
 
                         console.log(
                             `⚠️ Console Error: ${errorMessage}`
@@ -112,18 +143,24 @@ for (const website of websites) {
             // START TEST
             // =================================================
 
-            console.log('\n========================================');
+            console.log(
+                '\n========================================'
+            );
+
 
             console.log(
                 `Testing: ${website.SiteName}`
             );
 
+
             console.log(
                 `URL: ${website.URL}`
             );
 
+
             console.log(
-                '========================================');
+                '========================================'
+            );
 
 
             try {
@@ -214,7 +251,7 @@ for (const website of websites) {
 
 
                 // =============================================
-                // 5. CHECK ALL LINKS
+                // 5. CHECK LINKS
                 // =============================================
 
                 const linkResults =
@@ -273,7 +310,7 @@ for (const website of websites) {
 
 
                 // =============================================
-                // 8. DISPLAY BROKEN LINKS
+                // 8. DISPLAY LINK RESULTS
                 // =============================================
 
                 console.log(
@@ -281,7 +318,9 @@ for (const website of websites) {
                 );
 
 
-                if (brokenLinks > 0) {
+                if (
+                    brokenLinks > 0
+                ) {
 
                     console.log(
                         '\n❌ Broken Links Found:'
@@ -318,7 +357,9 @@ for (const website of websites) {
                 );
 
 
-                if (warningLinks > 0) {
+                if (
+                    warningLinks > 0
+                ) {
 
                     console.log(
                         '\n⚠️ Links Needing Review:'
@@ -340,14 +381,14 @@ for (const website of websites) {
 
 
                 // =============================================
-                // 10. WAIT FOR JAVASCRIPT
+                // 10. WAIT FOR PAGE ACTIVITY
                 // =============================================
 
                 await page.waitForTimeout(2000);
 
 
                 // =============================================
-                // 11. CONSOLE ERROR RESULTS
+                // 11. CONSOLE ERRORS
                 // =============================================
 
                 consoleErrors =
@@ -393,18 +434,97 @@ for (const website of websites) {
 
 
                 // =============================================
-                // 12. WEBSITE STATUS
+                // 12. NETWORK REQUEST RESULTS
                 // =============================================
 
-                websiteStatus = 'PASS';
+                const failedRequests =
+                    networkChecker.getFailedRequests();
+
+
+                // Remove duplicate requests
+
+                const uniqueFailedRequests =
+                    failedRequests.filter(
+                        (request, index, self) => {
+
+                            return index ===
+                                self.findIndex(
+                                    item =>
+                                        item.url === request.url &&
+                                        item.status === request.status &&
+                                        item.failure === request.failure
+                                );
+
+                        }
+                    );
+
+
+                failedNetworkRequests =
+                    uniqueFailedRequests.length;
+
+
+                failedNetworkRequestDetails =
+                    uniqueFailedRequests
+                        .map(
+                            request =>
+                                `${request.status} | ${request.resourceType} | ${request.method} | ${request.failure} | ${request.url}`
+                        )
+                        .join('\n');
+
+
+                // =============================================
+                // 13. DISPLAY NETWORK RESULTS
+                // =============================================
+
+                console.log(
+                    `Failed Network Requests: ${failedNetworkRequests}`
+                );
+
+
+                if (
+                    failedNetworkRequests > 0
+                ) {
+
+                    console.log(
+                        '\n❌ Failed Network Requests:'
+                    );
+
+
+                    for (
+                        const request
+                        of uniqueFailedRequests
+                    ) {
+
+                        console.log(
+                            `- ${request.status} | ${request.resourceType} | ${request.method} | ${request.failure} | ${request.url}`
+                        );
+
+                    }
+
+                }
+                else {
+
+                    console.log(
+                        '✅ No failed network requests found'
+                    );
+
+                }
+
+
+                // =============================================
+                // 14. WEBSITE STATUS
+                // =============================================
+
+                websiteStatus =
+                    'PASS';
 
 
                 console.log(
                     `\n✅ ${website.SiteName} - PASS`
                 );
 
-
             }
+
 
             catch (error) {
 
@@ -413,7 +533,8 @@ for (const website of websites) {
                 // TEST FAILED
                 // =============================================
 
-                websiteStatus = 'FAIL';
+                websiteStatus =
+                    'FAIL';
 
 
                 failureReason =
@@ -473,7 +594,44 @@ for (const website of websites) {
 
 
             // =================================================
-            // FINAL CONSOLE ERROR DATA
+            // FINAL NETWORK DATA
+            // =================================================
+
+            const finalFailedRequests =
+                networkChecker.getFailedRequests();
+
+
+            const finalUniqueFailedRequests =
+                finalFailedRequests.filter(
+                    (request, index, self) => {
+
+                        return index ===
+                            self.findIndex(
+                                item =>
+                                    item.url === request.url &&
+                                    item.status === request.status &&
+                                    item.failure === request.failure
+                            );
+
+                    }
+                );
+
+
+            failedNetworkRequests =
+                finalUniqueFailedRequests.length;
+
+
+            failedNetworkRequestDetails =
+                finalUniqueFailedRequests
+                    .map(
+                        request =>
+                            `${request.status} | ${request.resourceType} | ${request.method} | ${request.failure} | ${request.url}`
+                    )
+                    .join('\n');
+
+
+            // =================================================
+            // FINAL CONSOLE DATA
             // =================================================
 
             consoleErrors =
@@ -485,7 +643,7 @@ for (const website of websites) {
 
 
             // =================================================
-            // ADD RESULT TO EXCEL
+            // ADD RESULT TO REPORT
             // =================================================
 
             results.push({
@@ -526,6 +684,12 @@ for (const website of websites) {
                 'Console Error Messages':
                     consoleErrorMessages,
 
+                'Failed Network Requests':
+                    failedNetworkRequests,
+
+                'Failed Network Request Details':
+                    failedNetworkRequestDetails,
+
                 'Website Status':
                     websiteStatus,
 
@@ -539,7 +703,7 @@ for (const website of websites) {
 
 
             // =================================================
-            // FAIL PLAYWRIGHT TEST ONLY FOR MAIN SITE FAILURE
+            // FAIL PLAYWRIGHT TEST IF MAIN SITE FAILED
             // =================================================
 
             if (
@@ -559,14 +723,18 @@ for (const website of websites) {
 
 
 // ============================================================
-// GENERATE EXCEL REPORT AFTER ALL TESTS
+// GENERATE EXCEL REPORT
 // ============================================================
 
 test.afterAll(() => {
 
-    if (results.length > 0) {
+    if (
+        results.length > 0
+    ) {
 
-        generateExcelReport(results);
+        generateExcelReport(
+            results
+        );
 
     }
 
