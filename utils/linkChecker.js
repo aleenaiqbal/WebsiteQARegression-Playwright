@@ -4,52 +4,168 @@ async function checkLinks(request, links) {
 
     for (const link of links) {
 
-        // Skip empty links
-        if (!link.href) {
+        // =====================================================
+        // GET URL
+        // =====================================================
+
+        let url;
+
+        if (typeof link === 'string') {
+
+            url = link;
+
+        } else if (link && link.url) {
+
+            url = link.url;
+
+        } else {
+
             continue;
+
         }
 
-        // Skip non-web links
-        if (
-            link.href.startsWith('mailto:') ||
-            link.href.startsWith('tel:') ||
-            link.href.startsWith('javascript:') ||
-            link.href.startsWith('#')
-        ) {
-            continue;
-        }
+
+        // =====================================================
+        // CHECK LINK
+        // =====================================================
 
         try {
 
-            const response = await request.get(link.href, {
-                timeout: 15000
+            const response = await request.get(url, {
+
+                timeout: 15000,
+
+                failOnStatusCode: false
+
             });
+
 
             const status = response.status();
 
+
+            let result = 'PASS';
+
+            let category = 'Working';
+
+
+            // =================================================
+            // 200 - 399
+            // =================================================
+
+            if (
+                status >= 200 &&
+                status < 400
+            ) {
+
+                result = 'PASS';
+
+                category = 'Working';
+
+            }
+
+
+            // =================================================
+            // 400 - 499
+            // =================================================
+
+            else if (
+                status >= 400 &&
+                status < 500
+            ) {
+
+                result = 'WARNING';
+
+                category = 'HTTP Client Error';
+
+            }
+
+
+            // =================================================
+            // 500 - 599
+            // =================================================
+
+            else if (
+                status >= 500 &&
+                status < 600
+            ) {
+
+                result = 'FAIL';
+
+                category = 'Server Error';
+
+            }
+
+
+            // =================================================
+            // UNKNOWN STATUS
+            // =================================================
+
+            else {
+
+                result = 'WARNING';
+
+                category = 'Unknown HTTP Status';
+
+            }
+
+
+            // =================================================
+            // SAVE RESULT
+            // =================================================
+
             results.push({
-                text: link.text || 'N/A',
-                url: link.href,
+
+                url: url,
+
                 status: status,
-                result: status >= 200 && status < 400
-                    ? 'PASS'
-                    : 'FAIL'
+
+                result: result,
+
+                category: category,
+
+                error: ''
+
             });
 
-        } catch (error) {
+        }
+
+
+        // =====================================================
+        // REQUEST ERROR
+        // =====================================================
+
+        catch (error) {
 
             results.push({
-                text: link.text || 'N/A',
-                url: link.href,
+
+                url: url,
+
                 status: 'ERROR',
-                result: 'FAIL'
+
+                result: 'WARNING',
+
+                category: 'Request Failed',
+
+                error: error.message
+
             });
+
         }
+
     }
 
+
     return results;
+
 }
 
+
+// =============================================================
+// EXPORT
+// =============================================================
+
 module.exports = {
+
     checkLinks
+
 };
